@@ -1,48 +1,84 @@
 package com.example.demo;
 
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.http.ResponseEntity;
+import org.springframework.stereotype.Controller;
+import org.springframework.ui.Model;
 import org.springframework.web.bind.annotation.*;
-import java.util.ArrayList;
 import java.util.List;
 
-@RestController
-@RequestMapping("/api")
+@Controller
+@RequestMapping("/") 
 public class StudentController {
 
-    // Bài 1: Hello API
-    @GetMapping("/hello")
-    public String hello() {
-        return "Hello Spring Boot API";
-    }
+    @Autowired
+    private StudentService studentService;
 
-    // Bài 2: API nhận tham số (Request Param)
-    @GetMapping("/greet")
-    public String greet(@RequestParam String name) {
-        return "Xin chào " + name;
-    }
-
-    @GetMapping("/students/search")
-    public String search(@RequestParam String keyword, @RequestParam(defaultValue = "1") int page) {
-        return "keyword=" + keyword + ", page=" + page;
-    }
-
-    // Bài 3: API với Path Variable
-    @GetMapping("/student/{id}")
-    public String getStudent(@PathVariable int id) {
-        return "Sinh viên có mã: " + id;
-    }
-    // Bài 4: Trả về JSON Object
-    @GetMapping("/student")
-    public Student getStudent() {
-        // Spring Boot sẽ tự động chuyển đối tượng Student này thành JSON
-        return new Student(1, "Nguyễn Văn A", 20);
-    }
-
-    // Bài 5: Trả về danh sách (List)
+    // 1. Hiển thị danh sách sinh viên
     @GetMapping("/students")
-    public List<Student> getStudents() {
-        List<Student> list = new ArrayList<>();
-        list.add(new Student(1, "A", 20));
-        list.add(new Student(2, "B", 21));
-        return list;
+    public String listStudents(Model model) {
+        model.addAttribute("students", studentService.getAllStudents());
+        return "students"; 
+    }
+
+    // 2. Mở form thêm mới
+    @GetMapping("/student/add")
+    public String showAddForm(Model model) {
+        // Tạo đối tượng trống, ID sẽ được xử lý lúc nhấn Save
+        model.addAttribute("student", new Student());
+        return "add-student"; 
+    }
+
+    // 3. Mở form sửa (Nạp dữ liệu cũ bằng ID)
+    @GetMapping("/student/edit/{id}")
+    public String showEditForm(@PathVariable("id") String id, Model model) {
+        Student student = studentService.getStudentById(id);
+        if (student != null) {
+            model.addAttribute("student", student);
+            return "add-student"; 
+        }
+        return "redirect:/students";
+    }
+
+    // 4. Xử lý Lưu (Cả Thêm và Sửa) - ĐÃ SỬA TẠI ĐÂY
+    @PostMapping("/student/save")
+    public String saveStudent(@ModelAttribute("student") Student student) {
+        // GỌI HÀM TẠO UUID: 
+        // Nếu là thêm mới (id null), nó sẽ tạo mới. 
+        // Nếu là sửa (đã có id từ input hidden), nó sẽ giữ nguyên id đó để Update.
+        student.generateIdIfNull(); 
+        
+        studentService.saveStudent(student);
+        return "redirect:/students";
+    }
+
+    // 5. Xem chi tiết
+    @GetMapping("/student/{id}")
+    public String getStudentDetail(@PathVariable("id") String id, Model model) { 
+        Student student = studentService.getStudentById(id); 
+        model.addAttribute("student", student);
+        return "student-detail";
+    }
+
+    // 6. Xóa
+    @GetMapping("/student/delete/{id}")
+    @ResponseBody
+    public ResponseEntity<String> deleteStudent(@PathVariable("id") String id) { 
+        try {
+            studentService.deleteStudent(id);
+            return ResponseEntity.ok("Xóa thành công"); 
+        } catch (Exception e) {
+            return ResponseEntity.status(500).body("Lỗi hệ thống");
+        }
+    }
+
+    // 7. API Search
+    @GetMapping("/api/students/search")
+    @ResponseBody
+    public List<Student> searchStudents(@RequestParam(value = "name", required = false) String name) {
+        if (name == null || name.isEmpty()) {
+            return studentService.getAllStudents();
+        }
+        return studentService.searchByName(name);
     }
 }
